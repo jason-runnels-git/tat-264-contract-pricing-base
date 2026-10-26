@@ -24,6 +24,10 @@
                 <field>ListPrice</field>
             </layoutItems>
             <layoutItems>
+                <behavior>Edit</behavior>
+                <field>PricingContractId</field>
+            </layoutItems>
+            <layoutItems>
                 <behavior>Required</behavior>
                 <field>UnitPrice</field>
             </layoutItems>
