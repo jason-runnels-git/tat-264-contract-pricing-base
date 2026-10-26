@@ -206,7 +206,7 @@ On mid-term amendment quotes, a line with no quantity change (delta qty = 0) may
 | `PricingContractId` on Quote page layout | ✅ Done — `Quote-RLM Quote Layout`, below `ContractId` |
 | `PricingContractId` on Quote Lightning record page | ✅ Done — `RLM_Quote_Record_Page`, below `ContractId` |
 | `PricingContractId` on Quote Line Item page layout | ✅ Done — `QuoteLineItem-RLM Quote Line Item Layout`, after `ListPrice` |
-| `RLM_DefaultPricingProcedure` updated to V2 (8 changes) | ⏳ Pending |
+| `RLM_DefaultPricingProcedure` updated to V2 (9 changes) | ✅ Done — V2 active, 9 changes applied 2026-10-26 |
 | Contract has `ContractItemPrice` records for each product + PSM | Runtime — per scenario |
 | CIP `StartDate`/`EndDate` within contract's own dates | Runtime — per scenario |
 | Contract is Activated | Runtime — per scenario |
@@ -293,13 +293,148 @@ On mid-term amendment quotes, a line with no quantity change (delta qty = 0) may
 
 ---
 
+### Change 4 — Pricing Procedure V2 Migration (`RLM_DefaultPricingProcedure`)
+
+V2 of the pricing procedure was created (Version Number: 2, Rank: 2) and all 9 changes below were applied before activation. V1 (Rank 1) was deactivated first. V2 is now the active version.
+
+**File changed:** `force-app/main/default/expressionSetDefinition/RLM_DefaultPricingProcedure.expressionSetDefinition-meta.xml`
+
+---
+
+#### Procedure Change 1 — Add Assignment: Pass Pricing Contract ID from Quote to Lines
+
+A new Assignment element (`PassPricingContractIDfromQuotetoQuoteLines`) was inserted at seq 3, immediately after the Map Line Items element. It copies the header-level `PricingContract` context variable (`Quote.PricingContractId`) into the line-level `ItemPricingContract` context variable (`QuoteLineItem.PricingContractId`) before any contract lookup runs.
+
+**Why:** `QuoteLineItem.PricingContractId` is not automatically populated from the quote header. Every downstream contract element reads `ItemPricingContract` — without this assignment, the value is always null for direct-contract quotes.
+
+---
+
+#### Procedure Change 2 — Rename and Fix "Assigned From Pricing Contract" List Price Element
+
+The List Price element inside **Set List Price for Lines With Contract Pricing** was originally named `Assign ItemContractPrice to ListPrice`. Two changes applied:
+
+1. **Renamed** to `Assigned From Pricing Contract`
+2. **ContractId input variable changed:** `ItemContract` → `ItemPricingContract`
+
+**Why:** `ItemContract` is the platform-native variable for ARC amendment lines only — it is null for direct-contract quotes. Switching to `ItemPricingContract` (set by Procedure Change 1) enables the CIP decision table lookup for direct-contract quotes.
+
+---
+
+#### Procedure Change 3 — Fix Root-Cause Filter: Set List Price for Lines With Contract Pricing
+
+The Filter element (seq 1) inside this conditional group had a circular dependency that permanently locked out all contract pricing:
+
+| Old (3 conditions) | New (1 condition) |
+|---|---|
+| Item Pricing Source IS NULL | Item Pricing Contract IS NOT NULL |
+| Is Contracted IS NOT NULL | — |
+| Is Contracted EQUALS true | — |
+
+**Why this was broken:** `IsContracted` starts null at the beginning of every pricing run. It is only set to `true` by the `Assigned From Pricing Contract` DT element that lives inside this same container at seq 2. The filter ran first (seq 1), so all lines were blocked before the DT fired. `IsContracted` was never set — and every downstream contract container is also gated on `IsContracted = true` — so the entire contract pricing waterfall was permanently locked for every run.
+
+**Fix:** The new single condition `ItemPricingContract IS NOT NULL` fires on the variable already populated by Procedure Change 1, breaking the circular dependency.
+
+---
+
+#### Procedure Change 4 — Volume Discount: ContractId Input
+
+Inside **Apply Volume Based Discounts to Lines With Contract and Without Derived Pricing**, the Volume Discount element's `Id` input was changed:
+
+- `ItemContract` → `ItemPricingContract`
+
+Same root cause as Procedure Change 2 — `ItemContract` is null for direct-contract quotes.
+
+---
+
+#### Procedure Change 5 — Contract Attribute Pricing Filter: Add IsContracted Gating
+
+Inside **Set Attribute Based Pricing for Lines Without Derived Pricing**, the Filter element was extended from 4 to 6 conditions:
+
+| # | Added Condition |
+|---|---|
+| 5 | Is Contracted — IS NOT NULL |
+| 6 | Is Contracted — EQUALS true |
+
+**Why:** Without these conditions, non-contracted lines could attempt attribute pricing via the contract attribute path. After Procedure Change 3 unlocks the contract waterfall, `IsContracted = true` is only set for lines with a confirmed CIP match, so these conditions correctly limit this container to contracted lines only.
+
+---
+
+#### Procedure Change 6 — Fallback InputUnitPrice Filter: Exclude Contracted Lines
+
+Inside **Set Input Unit Price for Lines Without Derived Pricing or Last Transaction Pricing**, the Filter element was extended from 4 to 5 conditions:
+
+| # | Added Condition |
+|---|---|
+| 5 | Is Contracted — EQUALS false |
+
+**Why:** After contract pricing runs (Procedure Changes 1–5), contracted lines already have `InputUnitPrice` set from the CIP. Without this condition, contracted lines could re-enter this container and have `InputUnitPrice` overwritten with pricebook list price. `Equals false` (not `Is Null`) ensures null-`IsContracted` lines (standard + amendment) still pass through.
+
+---
+
+#### Procedure Change 7 — Per-Line Date Input for CIP Date-Range Lookup
+
+Inside **Assigned From Pricing Contract** (the List Price element), the StartDate and EndDate decision table inputs were changed:
+
+| Input Column | Old | New |
+|---|---|---|
+| StartDate | `PricingDate` | `DerivedStartDateTime__std` |
+| EndDate | `PricingDate` | `DerivedStartDateTime__std` |
+
+**Why:** `PricingDate` resolves at header scope — all lines get the same date regardless of their individual `StartDate` values, so all lines matched the same CIP tier. `DerivedStartDateTime__std` is a platform-standard per-line `SalesTransactionItem` field derived from `QuoteLineItem.StartDate + StartTime`. Inside a List Price element (which executes per-line), it resolves at line scope — each line's CIP lookup uses its own start date, enabling multi-year date-range CIPs on a single quote.
+
+---
+
+#### Procedure Change 8 — Fix CIP Price Propagation to InputUnitPrice (Three-Part Fix)
+
+**Root cause:** The `Assigned From Pricing Contract` DT correctly found the right CIP per line, but the matched price was not reaching each line's `InputUnitPrice` (Sales Price).
+
+**Part A — Change DT Output: ListPrice → InputUnitPrice**
+
+Inside the **Assigned From Pricing Contract** List Price element, the Output Variables mapping was changed:
+
+- `ListPrice` output column: `ItemContractPrice` → `InputUnitPrice`
+
+The List Price element's implicit platform behavior also writes the matched CIP price to the line's per-line `ListPrice` field as each line executes.
+
+**Part B — Simplify Seq 11 Filter**
+
+Inside **Set Input Unit Price for Lines With Contract Pricing**, the Filter element was simplified from 4 conditions to 2:
+
+| Old (4 conditions, `1 AND (2 OR (3 AND 4))`) | New (2 conditions, `1 AND 2`) |
+|---|---|
+| Item Contract Price IS NOT NULL | Item Contract Price IS NOT NULL |
+| Input Unit Price IS NULL | Input Unit Price IS NULL |
+| List Price IS NOT NULL | *(removed)* |
+| Input Unit Price EQUALS ListPrice | *(removed)* |
+
+**Part C — Change Assignment Source: ItemContractPrice → ListPrice**
+
+Inside **Set Input Unit Price for Lines With Contract Pricing**, the Assignment element was updated:
+
+- **Label:** `Assign ItemContractPrice to InputUnitPrice` → `Assign ListPrice to InputUnitPrice`
+- **Source variable:** `ItemContractPrice` → `ListPrice`
+
+**Why Part C is the real fix:** `ItemContractPrice` is a transient procedure-level variable — it holds the last DT write across all lines in the batch (last-write-wins at header scope). After all contracted lines execute through the CIP container, `ItemContractPrice` reflects only the last line's price. The Assignment would then apply that single value to all lines. `ListPrice` is a per-line `SalesTransactionItem` field — the List Price BKM's implicit platform behavior writes each line's matched CIP price to its own `ListPrice` during the CIP lookup. Reading `ListPrice` in the Assignment gives each line its own correct per-line CIP price.
+
+---
+
+#### Procedure Change 9 — Rename Manual Discount Element for Waterfall Clarity
+
+Inside **Apply manual discounts to lines without derived pricing**, the Manual Discount element was renamed:
+
+- `Calculate net unit and item net total prices after manual discount` → `Discount Assigned From Pricing Contract`
+
+Display-only change — no logic modified. Makes the pricing waterfall view accurately reflect that this element applies the contract-sourced discount for percentage and amount CIP types.
+
+---
+
 ## Remaining Work
 
 | Item | Notes |
 |---|---|
-| **V2 pricing procedure migration** (8 changes to `RLM_DefaultPricingProcedure`) | Root cause fixes for contract pricing path — CHANGE 1 through CHANGE 8 per `_CONTRACT_PRICING_REFERENCE/v2-pricing-procedure-migration-runbook.md` |
 | Contract Pricing Entries DT verification | Confirm source criteria, row count, and `LastSyncDate` in org |
 | End-to-end test | Create contract + CIPs → activate → reprice quote → verify Sales Price |
+| Amendment scenarios | Test 4 untested amendment scenarios from the table in this README |
 
 ---
 
@@ -312,12 +447,14 @@ _CONTRACT_PRICING_REFERENCE/                                    ← design docs 
   v2-pricing-procedure-migration-runbook.md
 
 force-app/main/default/
+  expressionSetDefinition/
+    RLM_DefaultPricingProcedure.expressionSetDefinition-meta.xml ← MODIFIED (Change 4 — V2, 9 procedure changes)
   flows/
-    RLM_Set_Pricing_Contract_On_Quote.flow-meta.xml             ← NEW (Change 2)
+    RLM_Set_Pricing_Contract_On_Quote.flow-meta.xml              ← NEW (Change 2)
   permissionsets/
-    RLM_QuantumBit.permissionset-meta.xml                       ← MODIFIED (Change 1)
+    RLM_QuantumBit.permissionset-meta.xml                        ← MODIFIED (Change 1)
   profiles/
-    *.profile-meta.xml (75 files)                               ← NEW (Change 1)
+    *.profile-meta.xml (75 files)                                ← NEW (Change 1)
 
 templates/
   flexipages/base/
