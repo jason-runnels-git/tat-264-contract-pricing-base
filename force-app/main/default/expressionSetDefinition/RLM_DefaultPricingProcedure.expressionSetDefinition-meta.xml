@@ -9236,92 +9236,6 @@
                     <name>AdjustmentType</name>
                     <output>false</output>
                     <type>Parameter</type>
-                    <value>ItemContractDiscountType</value>
-                </parameters>
-                <parameters>
-                    <input>true</input>
-                    <name>AdjustmentValue</name>
-                    <output>false</output>
-                    <type>Parameter</type>
-                    <value>ItemContractDiscountValue</value>
-                </parameters>
-                <parameters>
-                    <input>true</input>
-                    <name>Quantity</name>
-                    <output>false</output>
-                    <type>Parameter</type>
-                    <value>LineItemQuantity</value>
-                </parameters>
-                <parameters>
-                    <input>true</input>
-                    <name>InputUnitPrice</name>
-                    <output>false</output>
-                    <type>Parameter</type>
-                    <value>NetUnitPrice</value>
-                </parameters>
-                <parameters>
-                    <input>true</input>
-                    <name>HideWaterfall</name>
-                    <output>false</output>
-                    <type>Literal</type>
-                    <value>false</value>
-                </parameters>
-                <parameters>
-                    <input>true</input>
-                    <name>sectionCount</name>
-                    <output>false</output>
-                    <type>Literal</type>
-                    <value>0</value>
-                </parameters>
-                <parameters>
-                    <input>true</input>
-                    <name>selectedFunction</name>
-                    <output>false</output>
-                    <type>Literal</type>
-                    <value>Get</value>
-                </parameters>
-                <parameters>
-                    <input>true</input>
-                    <name>IsRealTime</name>
-                    <output>false</output>
-                    <type>Literal</type>
-                    <value>false</value>
-                </parameters>
-                <parameters>
-                    <input>false</input>
-                    <name>NetUnitPrice</name>
-                    <output>true</output>
-                    <type>Parameter</type>
-                    <value>NetUnitPrice</value>
-                </parameters>
-                <parameters>
-                    <input>false</input>
-                    <name>Subtotal</name>
-                    <output>true</output>
-                    <type>Parameter</type>
-                    <value>ItemNetTotalPrice</value>
-                </parameters>
-            </customElement>
-            <description>Manual Discount</description>
-            <hasNestedExplainability>false</hasNestedExplainability>
-            <label>Calculate net unit and item net total prices after manual discount</label>
-            <name>Calculatenetunitanditemnettotalpricesaftermanualdiscount</name>
-            <parentStep>Applymanualdiscountstolineswithoutderivedpricing</parentStep>
-            <resultIncluded>false</resultIncluded>
-            <sequenceNumber>2</sequenceNumber>
-            <shouldExposExecPathMsgOnly>true</shouldExposExecPathMsgOnly>
-            <shouldExposeConditionDetails>false</shouldExposeConditionDetails>
-            <shouldShowExplExternally>false</shouldShowExplExternally>
-            <stepType>BusinessKnowledgeModel</stepType>
-        </steps>
-        <steps>
-            <actionType>ManualDiscount</actionType>
-            <customElement>
-                <parameters>
-                    <input>true</input>
-                    <name>AdjustmentType</name>
-                    <output>false</output>
-                    <type>Parameter</type>
                     <value>PercentageStringConstant</value>
                 </parameters>
                 <parameters>
@@ -10812,6 +10726,92 @@
             <stepType>AdvancedListFilter</stepType>
         </steps>
         <steps>
+            <actionType>ManualDiscount</actionType>
+            <customElement>
+                <parameters>
+                    <input>true</input>
+                    <name>AdjustmentType</name>
+                    <output>false</output>
+                    <type>Parameter</type>
+                    <value>ItemContractDiscountType</value>
+                </parameters>
+                <parameters>
+                    <input>true</input>
+                    <name>AdjustmentValue</name>
+                    <output>false</output>
+                    <type>Parameter</type>
+                    <value>ItemContractDiscountValue</value>
+                </parameters>
+                <parameters>
+                    <input>true</input>
+                    <name>Quantity</name>
+                    <output>false</output>
+                    <type>Parameter</type>
+                    <value>LineItemQuantity</value>
+                </parameters>
+                <parameters>
+                    <input>true</input>
+                    <name>InputUnitPrice</name>
+                    <output>false</output>
+                    <type>Parameter</type>
+                    <value>NetUnitPrice</value>
+                </parameters>
+                <parameters>
+                    <input>true</input>
+                    <name>HideWaterfall</name>
+                    <output>false</output>
+                    <type>Literal</type>
+                    <value>false</value>
+                </parameters>
+                <parameters>
+                    <input>true</input>
+                    <name>sectionCount</name>
+                    <output>false</output>
+                    <type>Literal</type>
+                    <value>0</value>
+                </parameters>
+                <parameters>
+                    <input>true</input>
+                    <name>selectedFunction</name>
+                    <output>false</output>
+                    <type>Literal</type>
+                    <value>Get</value>
+                </parameters>
+                <parameters>
+                    <input>true</input>
+                    <name>IsRealTime</name>
+                    <output>false</output>
+                    <type>Literal</type>
+                    <value>false</value>
+                </parameters>
+                <parameters>
+                    <input>false</input>
+                    <name>NetUnitPrice</name>
+                    <output>true</output>
+                    <type>Parameter</type>
+                    <value>NetUnitPrice</value>
+                </parameters>
+                <parameters>
+                    <input>false</input>
+                    <name>Subtotal</name>
+                    <output>true</output>
+                    <type>Parameter</type>
+                    <value>ItemNetTotalPrice</value>
+                </parameters>
+            </customElement>
+            <description>Manual Discount</description>
+            <hasNestedExplainability>false</hasNestedExplainability>
+            <label>Discount Assigned From Pricing Contract</label>
+            <name>DiscountAssignedFromPricingContract</name>
+            <parentStep>Applymanualdiscountstolineswithoutderivedpricing</parentStep>
+            <resultIncluded>false</resultIncluded>
+            <sequenceNumber>2</sequenceNumber>
+            <shouldExposExecPathMsgOnly>true</shouldExposExecPathMsgOnly>
+            <shouldExposeConditionDetails>false</shouldExposeConditionDetails>
+            <shouldShowExplExternally>false</shouldShowExplExternally>
+            <stepType>BusinessKnowledgeModel</stepType>
+        </steps>
+        <steps>
             <actionType>DiscountDistributionService</actionType>
             <customElement>
                 <parameters>
@@ -11056,7 +11056,7 @@
                 <criteria>
                     <operator>IsNull</operator>
                     <sequenceNumber>2</sequenceNumber>
-                    <sourceFieldName>InputUnitPrice</sourceFieldName>
+                    <sourceFieldName>ItemContractPrice</sourceFieldName>
                 </criteria>
             </advancedCondition>
             <hasNestedExplainability>false</hasNestedExplainability>
@@ -11072,11 +11072,16 @@
         </steps>
         <steps>
             <advancedCondition>
-                <conditionLogic>1</conditionLogic>
+                <conditionLogic>1 AND 2</conditionLogic>
                 <criteria>
                     <operator>IsNotNull</operator>
                     <sequenceNumber>1</sequenceNumber>
                     <sourceFieldName>ItemPricingContract</sourceFieldName>
+                </criteria>
+                <criteria>
+                    <operator>IsNotNull</operator>
+                    <sequenceNumber>2</sequenceNumber>
+                    <sourceFieldName>DerivedStartDateTime__std</sourceFieldName>
                 </criteria>
             </advancedCondition>
             <hasNestedExplainability>false</hasNestedExplainability>
