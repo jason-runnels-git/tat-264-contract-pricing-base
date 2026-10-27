@@ -176,9 +176,13 @@ The `createContract` platform invocable (called by the Create Contract from Quot
 
 **Additional constraint:** Both tier DTs (`Contract_Pricing_Adjustment_Tiers` and `Contract_Pricing_Volume_Tiers`) filter on `ContractItemPriceId.ContractId.StatusCode = Activated`. Tier rows that exist under a Draft contract are excluded from the DT — the table must be refreshed after activation (handled automatically by `RLM_Contract_Activation_Refresh_Pricing_Tables`).
 
-### Gap 3: Bundle Child Lines — CIP Behavior Unconfirmed
+### Gap 3: Bundle Child Lines — CIP + Bundle Discount (Confirmed 2026-10-26)
 
-Whether the `createContract` platform action creates `ContractItemPrice` records for bundle child `QuoteLineItem` records has not been confirmed. If bundle children are skipped, contract pricing will not apply to child lines. This needs testing before deploying contract pricing into a bundle-heavy catalog.
+Bundle child lines with an explicit `StartDate` receive both CIP pricing and the bundle-based discount — by design. The CIP DT matches on product + PSM + date range with no awareness of bundle context, so a contracted bundle child resolves to its CIP price the same way a standalone line does. The `Apply bundle-based adjustments` element then applies the bundle discount on top. Both apply in the 264 QuantumBit orgs.
+
+Bundle children added via the configurator without an explicit `StartDate` (`DerivedStartDateTime__std = null`) are excluded from the CIP DT by CHANGE 12 and fall through to standard pricebook + bundle-based adjustments.
+
+**Optional override:** If a deployment requires CIP to be the price floor (no further bundle discounting on contracted lines), add `IsContracted IS NULL OR IsContracted = false` as conditions 2 and 3 (logic `1 AND (2 OR 3)`) to `Filterlineswithoutlasttransactionpricingtoapplybundlebasedadjustments` inside `Apply bundle-based adjustments`. Not applied in these orgs.
 
 ### Gap 4: Delta Quantity = 0 on Amendment Lines
 
