@@ -207,16 +207,23 @@ No automatic specificity resolution when both a Product2-level CIP and a Product
 
 ---
 
-### Gap 3b — Bundle Child Lines: Out of Scope by Design (Confirmed 2026-10-26)
-**Status:** Explicit use case exception. Not a defect. No fix planned.
+### Gap 3b — Bundle Child Lines with Explicit Start Dates: CIP + Bundle Discount (Confirmed 2026-10-26)
+**Status:** Resolved. Behavior is correct by design.
 
-The `Contract_Pricing_Entries_Decision_Table` has no concept of bundle parent/child context. CIP records match on `ItemId` (Product2), `ProductSellingModelId`, and date range only — there is no field to indicate "apply this CIP only when the product appears as a child of bundle X."
+The `Contract_Pricing_Entries_Decision_Table` has no concept of bundle parent/child context. CIP records match on `ItemId` (Product2), `ProductSellingModelId`, and date range only. Because the CIP DT is product-agnostic with respect to bundle context, a bundle child product with an explicit `StartDate` that matches a CIP record will receive CIP pricing just as a standalone line would.
 
-**Observed failure mode:** A bundle child added via the configurator has `DerivedStartDateTime__std = null`. With `doesConsiderNullValue = true` on the CIP DT, a null start date matches ALL CIP date ranges for that product simultaneously. If the product has multiple CIP records (e.g., Year 1 and Year 2), the DT returns multiple rows → "duplicate entries found" pricing failure.
+**Bundle child pricing waterfall (with explicit StartDate):**
+1. CIP DT finds a match → `UnitPrice` is set to the negotiated CIP price; `IsContracted = true`
+2. `Apply bundle-based adjustments` fires — its filter only gates on `ItemPricingSource NOT EQUALS LastTransaction`, NOT on `IsContracted`
+3. Bundle discount applies on top of the CIP price → `NetUnitPrice` = CIP price × (1 − bundle discount %)
 
-**Fix in place (CHANGE 12):** The CIP list price filter requires `DerivedStartDateTime__std IS NOT NULL`. Bundle children with no start date skip the CIP DT and fall through to standard pricebook pricing.
+**This is the intended behavior for the 264 QuantumBit orgs.** A contracted product in a bundle holds both its negotiated CIP price and its bundle relationship discount. Both apply.
 
-**Design boundary:** Contract pricing applies to standalone lines only. Bundle child lines use standard pricebook pricing + bundle-based adjustments. This is the supported behavior for the 264 QuantumBit orgs.
+**Observed failure mode (pre-CHANGE 12):** A bundle child added via the configurator with no explicit `StartDate` has `DerivedStartDateTime__std = null`. With `doesConsiderNullValue = true` on the CIP DT, a null start date matches ALL CIP date ranges for that product simultaneously. If the product has multiple CIP records (e.g., Year 1 and Year 2), the DT returns multiple rows → "duplicate entries found" pricing failure.
+
+**Fix in place (CHANGE 12):** The CIP list price filter requires `DerivedStartDateTime__std IS NOT NULL`. Bundle children with no explicit start date skip the CIP DT and price from the standard pricebook + bundle-based adjustments.
+
+**Optional deployment override:** If a future deployment requires CIP price to be the floor — preventing bundle discounts from applying further on top — add `IsContracted IS NULL OR IsContracted = false` as conditions 2 and 3 (logic: `1 AND (2 OR 3)`) to the `Filterlineswithoutlasttransactionpricingtoapplybundlebasedadjustments` filter inside `Apply bundle-based adjustments`. This is NOT applied in the 264 QuantumBit orgs.
 
 ---
 

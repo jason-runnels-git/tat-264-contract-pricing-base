@@ -187,19 +187,21 @@ The `createContract` platform invocable (called by the Create Contract from Quot
 
 > Custom automation to generate `ContractItemPriceAdjTier` records from quote line `PriceAdjustmentTier` data at contract creation time is planned but not yet built.
 
-### Gap 3: Bundle Child Lines — Out of Scope by Design (Confirmed 2026-10-26)
+### Gap 3: Bundle Child Lines — CIP + Bundle Discount (Confirmed 2026-10-26)
 
-**Decision:** Contract-based pricing does not apply to bundle child lines in the 264 QuantumBit orgs. This is an explicit use case exception, not a defect.
+**Design decision:** When a bundle child product has an explicit `StartDate` and a matching `ContractItemPrice` record, it receives both CIP pricing AND the bundle-based discount. This is the intended behavior for the 264 QuantumBit orgs.
 
-**Rationale:** The `Contract_Pricing_Entries_Decision_Table` that ships with Revenue Cloud has no concept of bundle parent/child relationships. A CIP record is matched by `ItemId` (Product2), `ProductSellingModelId`, and date range alone. There is nothing in the data model or the procedure that indicates a CIP should apply when a product appears as a child of a specific bundle rather than as a standalone line.
+**Why both apply:** The `Contract_Pricing_Entries_Decision_Table` is product-agnostic with respect to bundle context — it matches on `ItemId`, `ProductSellingModelId`, and date range only. A bundle child with an explicit start date resolves to its CIP price just as a standalone line would. The `Apply bundle-based adjustments` element then applies the bundle discount on top because its filter does not gate on `IsContracted`. Both are correct by design: the customer negotiated a CIP price for the product AND benefits from the bundle relationship discount.
 
-In practice: `Additional API` can have multiple CIP records on the same contract evaluated uniquely by product, PSM, and start date — and this works correctly for standalone lines. But when `Additional API` is added as a bundle child of `QuantumBit Complete Solution`, the bundle child has no explicit `StartDate` (`DerivedStartDateTime__std = null`). Because the CIP DT uses `doesConsiderNullValue = true`, a null start date matches all CIP date ranges simultaneously, returning multiple rows → "duplicate entries found" pricing failure.
+**Pricing waterfall for a contracted bundle child (e.g., Additional API in QuantumBit Complete Solution):**
+1. CIP DT matches on product + PSM + start date → `UnitPrice` = negotiated CIP price; `IsContracted = true`
+2. Bundle-based adjustment fires → `NetUnitPrice` = CIP price × (1 − bundle discount %)
 
-**Fix in place (CHANGE 12):** The CIP list price filter now requires `DerivedStartDateTime__std IS NOT NULL`. Bundle children added via the configurator (null start date) are excluded from the CIP DT and priced from the standard pricebook instead.
+**The null-StartDate failure (pre-CHANGE 12):** Bundle children added via the configurator without an explicit `StartDate` have `DerivedStartDateTime__std = null`. With `doesConsiderNullValue = true` on the CIP DT, null matches all date ranges simultaneously → multiple CIP rows returned → "duplicate entries found" pricing failure.
 
-**Supported behavior:** Bundle child lines use standard pricebook pricing plus any applicable bundle-based adjustments. Contract-based pricing (CIP overrides) applies only to standalone lines with explicit start dates.
+**Fix in place (CHANGE 12):** The CIP list price filter requires `DerivedStartDateTime__std IS NOT NULL`. Bundle children with no explicit start date are excluded from the CIP DT and priced from the standard pricebook + bundle adjustments instead.
 
-**Not in scope:** Applying CIP pricing to bundle child lines. If this is required in a future release, it would need a CIP data model extension to encode the bundle context (parent product + child product), a custom lookup element to match that context, and an explicit start date on bundle children.
+**Optional deployment override:** If a deployment requires CIP price to be the floor (no further bundle discounting on contracted lines), add `IsContracted IS NULL OR IsContracted = false` as additional conditions (logic `1 AND (2 OR 3)`) to the `Filterlineswithoutlasttransactionpricingtoapplybundlebasedadjustments` filter inside `Apply bundle-based adjustments`. This is not applied in the 264 QuantumBit orgs.
 
 ### Gap 4: Delta Quantity = 0 on Amendment Lines
 
