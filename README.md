@@ -178,6 +178,16 @@ The `createContract` platform invocable (called by the Create Contract from Quot
 
 **Additional constraint:** Both tier DTs (`Contract_Pricing_Adjustment_Tiers` and `Contract_Pricing_Volume_Tiers`) filter on `ContractItemPriceId.ContractId.StatusCode = Activated`. Tier rows that exist under a Draft contract are excluded from the DT — the table must be refreshed after activation (handled automatically by `RLM_Contract_Activation_Refresh_Pricing_Tables`).
 
+**Manual setup — volume tier CIPs are fully supported by the pricing procedure.** The gap is only in platform automation at contract creation time. You can demonstrate volume-based contract pricing today with manual data setup:
+
+1. Create a `ContractItemPrice` for the product (e.g., **Additional Messages - QB Starter**) and set `AdjustmentMethod = Range`. When `AdjustmentMethod = Range`, the `NetUnitPrice` field on the CIP itself is ignored — pricing is driven entirely by the tier records.
+2. Create one `ContractItemPriceAdjTier` child record per tier bracket. The simplest configuration uses `TierType = Percentage` with a `TierValue` (the discount percentage) and `LowerBound` / `UpperBound` quantity values that mirror the product's original `PriceAdjustmentSchedule` tier structure.
+3. Activate the contract and verify the decision table refreshed (`RLM_Contract_Activation_Refresh_Pricing_Tables` handles this automatically).
+
+The pricing procedure evaluates these tier records at runtime and applies the correct bracket for the line's quantity — the same way the standard volume discount path works, but driven by contract-specific rates instead of the pricebook PAS.
+
+> **Note:** Custom automation to generate `ContractItemPriceAdjTier` records from the source quote's `PriceAdjustmentTier` data at contract creation time is planned but not yet built for this release. Plan accordingly for demos that require this flow end-to-end.
+
 ### Gap 3: Bundle Child Lines — CIP + Bundle Discount (Confirmed 2026-10-26)
 
 Bundle child lines with an explicit `StartDate` receive both CIP pricing and the bundle-based discount — by design. The CIP DT matches on product + PSM + date range with no awareness of bundle context, so a contracted bundle child resolves to its CIP price the same way a standalone line does. The `Apply bundle-based adjustments` element then applies the bundle discount on top. Both apply in the 264 QuantumBit orgs.
@@ -199,7 +209,7 @@ When using **New Contract → Net Unit Price**, the `ContractItemPrice` records 
 - If the contract-based quote has a *lower quantity* than the original negotiated quantity, the CIP price does not adjust — the static captured price applies regardless.
 - Quantity is not cumulative across transactions. Each quote is priced independently against the static CIP value.
 
-**Impact for demos:** If you need to demonstrate volume-based contract pricing (price changes with quantity), use manually created `ContractItemPrice` + `ContractItemPriceAdjTier` records rather than relying on the New Contract flow to capture them. See Gap 2 for tier record requirements.
+**Impact for demos:** If you need to demonstrate volume-based contract pricing (price changes with quantity), use manually created `ContractItemPrice` + `ContractItemPriceAdjTier` records rather than relying on the New Contract flow to capture them. See **Gap 2** for the manual setup walkthrough — the pricing procedure fully supports this use case.
 
 ### Gap 6: One-Time PSM Products Silently Skip Contract Pricing
 
