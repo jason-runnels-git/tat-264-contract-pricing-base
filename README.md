@@ -152,6 +152,8 @@ The `RLM CreateContractFromQuote` flow is invoked from the Quote record via the 
 
 After the contract is created, the flow sets `Contract.PricingSource = LastTransaction` and calculates the contract term and renewal term from the quote's line dates.
 
+> **Bundle quotes — use Net Unit Price only.** When the source quote contains bundle lines, only the **Net Unit Price** option generates `ContractItemPrice` records for bundle child lines. The **Discount** option does not support bundles in the current 264 platform. Always select Net Unit Price when creating a contract from a bundle-heavy quote.
+
 ---
 
 ## Known Gaps and Limitations
@@ -187,6 +189,34 @@ Bundle children added via the configurator without an explicit `StartDate` (`Der
 ### Gap 4: Delta Quantity = 0 on Amendment Lines
 
 On mid-term amendment quotes, a line with no quantity change (delta qty = 0) may not resolve `DerivedStartDateTime__std` correctly, causing the CIP date-range lookup to fail or return the wrong tier. Changing the line's quantity to a non-zero delta value resolves the issue. A documented platform fix involving the Map Line element and additional settings is pending documentation and has not yet been implemented.
+
+### Gap 5: Net Unit Price CIPs Are a Static Snapshot — Volume Pricing Is Not Dynamic
+
+When using **New Contract → Net Unit Price**, the `ContractItemPrice` records are created using each line's `NetUnitPrice` at the time of contract creation. This price is static — it does not re-evaluate volume tiers dynamically.
+
+**What this means in practice:**
+- If the source quote had a volume-based `PriceAdjustmentSchedule` (e.g., `Additional Messages - QB Starter`), the CIP captures the net unit price that resulted from the quantity on *that* quote. It does not capture the underlying tier structure.
+- If the contract-based quote has a *lower quantity* than the original negotiated quantity, the CIP price does not adjust — the static captured price applies regardless.
+- Quantity is not cumulative across transactions. Each quote is priced independently against the static CIP value.
+
+**Impact for demos:** If you need to demonstrate volume-based contract pricing (price changes with quantity), use manually created `ContractItemPrice` + `ContractItemPriceAdjTier` records rather than relying on the New Contract flow to capture them. See Gap 2 for tier record requirements.
+
+### Gap 6: One-Time PSM Products Silently Skip Contract Pricing
+
+Products with a One-Time `ProductSellingModel` (e.g., **Professional Services Daily Rate**) do not participate in contract pricing in the 264 demo org. The CIP lookup silently returns no match — the line does not error, it just prices from the standard pricebook as if no contract were set.
+
+**Likely cause:** One-time products have no meaningful `StartDate` / `EndDate` date range, and the CIP DT date-range match logic does not produce a valid result for them.
+
+**What to do:**
+- Do not use one-time PSM products as contract pricing examples in demos.
+- Use a term-based product instead — for example, a **10% discount CIP on QuantumBit Subscription** effectively demonstrates percent-based contract pricing.
+- The line will not throw an error; it will just silently use pricebook pricing. Verify any one-time product line's `NetUnitPrice` if you suspect it should have been contract-priced.
+
+### Gap 7: Bundle Quotes May Require an Additional Reprice After Contract Linkage
+
+When working with contract-based pricing on quotes that include bundles, a single reprice may not be sufficient to fully apply all CIP prices across bundle children. If bundle child prices look incorrect after setting `ContractId` and repricing, trigger a second reprice.
+
+**Also verify:** One-time products *within* a bundle that have CIPs may not price correctly (see Gap 6). Check each one-time bundle child line individually and do not rely on them for contract pricing demonstrations.
 
 ---
 
